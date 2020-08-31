@@ -307,6 +307,10 @@ public class CPU {
 			p |= emu; // set carry
 			emulation = (carry == 1); // set emulation flag
 			return 2;
+		case 0x8D: // STA(absolute)
+			int accumulatorAddr = readAbsoluteAddress();
+			mapper.setShort(accumulatorAddr, (short)a);
+			return 4 - mInt;
 		default:
 			System.err.println("0x" + Integer.toHexString(pc) + ": unknown opcode (0x" + Integer.toHexString(opcode) + ")");
 		}
