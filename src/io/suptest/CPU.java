@@ -46,25 +46,28 @@ public class CPU {
 	int readImmediate(boolean wide) {
 		if (wide) {
 			int operand = mapper.getUnsignedShort(pc);
-			pc++;
-			pc++;
+			pc += 2;
 			return operand;
 		} else {
-			int operand = mapper.get(pc);
+			int operand = mapper.getUnsignedByte(pc);
 			pc++;
 			return operand;
 		}
 	}
 	
-	int readLong(boolean wide) {
+	int readLongAddress() {
 		// read 3-byte address
-		int addr = mapper.get(pc);
+		int addr = mapper.getUnsignedByte(pc);
 		pc++;
-		addr = addr | (mapper.get(pc) << 8);
+		addr |= (mapper.getUnsignedByte(pc) << 8);
 		pc++;
-		addr = addr | (mapper.get(pc) << 16);
+		addr |= (mapper.getUnsignedByte(pc) << 16);
 		pc++;
-		
+		return addr;
+	}
+	
+	int readLong(boolean wide) {
+		int addr = readLongAddress();
 		if (wide) {
 			return mapper.getUnsignedShort(addr);
 		} else {
@@ -73,14 +76,7 @@ public class CPU {
 	}
 	
 	int readLongX(boolean wide) {
-		// read 3-byte address
-		int addr = mapper.get(pc) + x;
-		pc++;
-		addr = addr | (mapper.get(pc) << 8);
-		pc++;
-		addr = addr | (mapper.get(pc) << 16);
-		pc++;
-		
+		int addr = readLongAddress();
 		if (wide) {
 			return mapper.getUnsignedShort(addr);
 		} else {
@@ -140,6 +136,17 @@ public class CPU {
 		if (m) a &= 0xFF;
 	}
 	
+	void sbc(int operand, boolean m) {
+		a = a - operand - 1 + (p & 1); // a = a - operand - 1 + carry
+		if (a > 0xFFFF || (m && a > 0xFF)) {
+			p |= 1; // set carry
+		} else {
+			p &= 0xFE; // clear carry
+		}
+		a &= 0xFFFF;
+		if (m) a &= 0xFF;
+	}
+	
 	public void m(boolean val) {
 		p &= 0b11011111;
 		p |= (val ? 1 : 0) << 5;
@@ -173,8 +180,13 @@ public class CPU {
 		}
 		
 		boolean m = (p & 0b100000) == 0b100000; // memory width flag, false = 16-bit, true = 8-bit
+		boolean xf = (p & 0b10000) == 0b10000; // index width flag, false = 16-bit, true = 8-bit
 		int mInt = m ? 1 : 0;
+		int xInt = xf ? 1 : 0;
 		int wInt = ((d & 0xFF) == 0) ? 0 : 1;
+		
+		int addr = 0;
+		int operand = 0;
 		
 		System.out.println(Integer.toHexString(pc) + ": " + Integer.toHexString(opcode));
 		pc++;
@@ -192,6 +204,7 @@ public class CPU {
 			debug("CLC");
 			return 2;
 		case 0x1B: // TCS
+			debug("TCS");
 			s = a;
 			return 2;
 		case 0x38: // SEC
@@ -204,10 +217,11 @@ public class CPU {
 			p = p & 0b11111011;
 			return 2;
 		case 0x5B: //TCD
+			debug("TCD");
 			d = a;
 			return 2;
 		case 0x69: // ADC (immediate)
-			int operand = readImmediate(!m);
+			operand = readImmediate(!m);
 			debug("ADC #$" + Integer.toHexString(operand));
 			adc(operand, m);
 			return 3-mInt;
@@ -224,21 +238,40 @@ public class CPU {
 		case 0x7B: // TDC
 			a = d;
 			return 2;
+		case 0x7D: // ADC (absolute,X)
+			operand = readAbsoluteX(!m);
+			debug("ADC (absolute,X)");
+			adc(operand, m);
+			return 3-mInt;
 		case 0x82: // BRL
-			pc++;
+			debug("BRL");
 			short displacement = mapper.getShort(pc);
 			pc += displacement + 1;
 			return 4;
 		case 0x85: // STA (direct)
-			int addr = readDirectAddress();
-			mapper.setShort(addr, (short) a);
+			addr = readDirectAddress();
 			debug("STA $" + Integer.toHexString(addr));
+			if (m) mapper.set(addr, (byte) a);
+			else mapper.setShort(addr, (short) a);
 			return 4-mInt-wInt;
 		case 0x8A: // TXA
 			a = x;
 			debug("TXA");
 			return 2;
-		case 0x98:
+		case 0x8D: // STA (absolute)
+			addr = readAbsoluteAddress();
+			debug("STA $" + Integer.toHexString(addr));
+			if (m) mapper.set(addr, (byte) a);
+			else mapper.setShort(addr, (short) a);
+			return 4-mInt;
+		case 0x8F: // STA (long)
+			addr = readLongAddress();
+			debug("STA $" + Integer.toHexString(addr));
+			if (m) mapper.set(addr, (byte) a);
+			else mapper.setShort(addr, (short) a);
+			return 6-mInt;
+		case 0x98: // TYA
+			debug("TYA");
 			a = y;
 			return 2;
 		case 0x9A: // TXS
@@ -248,14 +281,28 @@ public class CPU {
 			y = x;
 			return 2;
 		case 0x9C: // STZ (absolute)
-			int zAddr = readAbsoluteAddress();
-			debug("STZ $" + Integer.toHexString(zAddr));
+			addr = readAbsoluteAddress();
+			debug("STZ $" + Integer.toHexString(addr));
 			if (m) {
-				mapper.set(zAddr, (byte) 0);
+				mapper.set(addr, (byte) 0);
 			} else {
-				mapper.setShort(zAddr, (short) 0);
+				mapper.setShort(addr, (short) 0);
 			}
 			return 5-mInt;
+		case 0x9F: // STA (long,X)
+			addr = readLongAddress();
+			debug("STA $" + Integer.toHexString(addr) + ",X");
+			if (m) mapper.set(addr+x, (byte) a);
+			else mapper.setShort(addr+x, (short) a);
+			return 6-mInt;
+		case 0xA0: // LDY (immediate)
+			y = readImmediate(!xf);
+			debug("LDY #$" + Integer.toHexString(y));
+			return 3-xInt;
+		case 0xA2: // LDX (immediate)
+			x = readImmediate(!xf);
+			debug("LDX #$" + Integer.toHexString(x));
+			return 3-xInt;
 		case 0xA5: // LDA (direct)
 			a = readDirect(!m);
 			debug("LDA = " + a);
@@ -265,6 +312,7 @@ public class CPU {
 			return 2;
 		case 0xA9: // LDA (immediate)
 			a = readImmediate(!m);
+			debug("LDA #$" + Integer.toHexString(a));
 			return 3-mInt;
 		case 0xAA: // TAX
 			x = a;
@@ -297,20 +345,22 @@ public class CPU {
 			debug("SEP #" + Integer.toBinaryString(setBits));
 			p = p | setBits;
 			return 3;
+		case 0xE9: // SBC (immediate)
+			operand = readImmediate(!m);
+			debug("SBC #$" + Integer.toHexString(operand));
+			sbc(operand, m);
+			return 3-mInt;
 		case 0xF8: // SED
 			p |= 0b1000;
 			return 2;
 		case 0xFB: // XCE
+			debug("XCE");
 			int carry = p & 1;
 			int emu = emulation ? 1 : 0;
 			p &= 0xFE; // clear carry
-			p |= emu; // set carry
+			p |= emu; // set carry to emulation flag
 			emulation = (carry == 1); // set emulation flag
 			return 2;
-		case 0x8D: // STA(absolute)
-			int accumulatorAddr = readAbsoluteAddress();
-			mapper.setShort(accumulatorAddr, (short)a);
-			return 4 - mInt;
 		default:
 			System.err.println("0x" + Integer.toHexString(pc) + ": unknown opcode (0x" + Integer.toHexString(opcode) + ")");
 		}

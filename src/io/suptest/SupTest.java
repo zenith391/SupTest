@@ -11,6 +11,8 @@ public class SupTest {
 		byte[] rom = Files.readAllBytes(path);
 		byte[] ram = new byte[0x2FFFF];
 		byte[] cgram = new byte[0xFF];
+		byte[] oam = new byte[544];
+		byte[] vram = new byte[0xFFFF];
 		
 		String str = "";
 		int romOffset = 0x8000;
@@ -27,7 +29,7 @@ public class SupTest {
 		int sramSize = (int) Math.pow(2, rom[0xFFD8-romOffset]);
 		System.out.println(romSize + "K ROM, " + sramSize + "K SRAM.");
 		
-		Mapper mapper = new Mapper(rom, ram, cgram, mapMode);
+		Mapper mapper = new Mapper(rom, ram, cgram, oam, vram, mapMode);
 		CPU cpu = new CPU(mapper);
 		cpu.pc = mapper.getUnsignedShort(0xFFFC); // jump to RESET vector
 		

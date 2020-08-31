@@ -5,15 +5,21 @@ public class Mapper {
 	byte[] ram;
 	byte[] rom;
 	byte[] cgram;
+	byte[] oam;
+	byte[] vram;
 	byte[] sram;
 	MappingMode mode;
 	
 	int cgramAddr;
+	int vramAddr;
+	int oamAddr;
 	
-	public Mapper(byte[] rom, byte[] ram, byte[] cgram, MappingMode mode) {
+	public Mapper(byte[] rom, byte[] ram, byte[] cgram, byte[] oam, byte[] vram, MappingMode mode) {
 		this.rom = rom;
 		this.ram = ram;
 		this.cgram = cgram;
+		this.oam = oam;
+		this.vram = vram;
 		this.mode = mode;
 	}
 	
@@ -74,12 +80,24 @@ public class Mapper {
 			// TODO
 		}
 		
+		// CGRAM
 		if (addr == 0x2122) { // CGRAM write
 			cgram[cgramAddr] = value;
+			cgramAddr++;
 		}
-		
 		if (addr == 0x2121) { // CGRAM address
 			cgramAddr = Byte.toUnsignedInt(value);
+		}
+		
+		// OAM
+		if (addr == 0x2102) { // OAM address low
+			oamAddr = (oamAddr & 0xFF00) | Byte.toUnsignedInt(value);
+		} else if (addr == 0x2103) { // OAM address high
+			oamAddr = (oamAddr & 0xFF) | (Byte.toUnsignedInt(value) << 8);
+		}
+		if (addr == 0x2104) { // OAM write
+			oam[oamAddr] = value;
+			oamAddr++;
 		}
 		
 		if (addr >= 0x2140 && addr < 0x2144) { // APU I/O registers
