@@ -264,6 +264,7 @@ public class CPU {
 			return 2;
 		case 0x7B: // TDC
 			a = d;
+			return 2;
 		default:
 			System.err.println("0x" + Integer.toHexString(pc) + ": unknown opcode (0x" + Integer.toHexString(opcode) + ")");
 		}
