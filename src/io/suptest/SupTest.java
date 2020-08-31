@@ -30,6 +30,9 @@ public class SupTest {
 		CPU cpu = new CPU(mapper);
 		cpu.pc = mapper.getUnsignedShort(0xFFFC); // jump to RESET vector
 		
+		PPU ppu = new PPU(mapper);
+		Display display = new Display(ppu);
+		
 		while (true) {
 			cpu.execute();
 			Thread.sleep(100);
