@@ -253,6 +253,17 @@ public class CPU {
 			p |= emu; // set carry
 			emulation = (carry == 1); // set emulation flag
 			return 2;
+		case 0x3B: // TSC
+			a = s;
+			return 2;
+		case 0x1B: // TCS
+			s = a;
+			return 2;
+		case 0x5B: //TCD
+			d = a;
+			return 2;
+		case 0x7B: // TDC
+			a = d;
 		default:
 			System.err.println("0x" + Integer.toHexString(pc) + ": unknown opcode (0x" + Integer.toHexString(opcode) + ")");
 		}
