@@ -98,8 +98,12 @@ public class CPU {
 		}
 	}
 	
+	int readAbsoluteAddress() {
+		return (dbr << 16) | readImmediate(true);
+	}
+	
 	int readAbsolute(boolean wide) {
-		int addr = (dbr << 16) | readImmediate(wide);
+		int addr = readAbsoluteAddress();
 		if (wide) {
 			return mapper.getUnsignedShort(addr);
 		} else {
@@ -164,6 +168,8 @@ public class CPU {
 		
 		if (emulation) {
 			m(true);
+			s &= 0xFF; // clear SH
+			s |= 0x01; // set SH to 0x01
 		}
 		
 		boolean m = (p & 0b100000) == 0b100000; // memory width flag, false = 16-bit, true = 8-bit
@@ -172,17 +178,37 @@ public class CPU {
 		
 		System.out.println(Integer.toHexString(pc) + ": " + Integer.toHexString(opcode));
 		pc++;
-		System.out.println("a = " + a);
+		//System.out.println("a = " + a);
 		switch (opcode) {
 		case 0x00: // BRK
+			debug("BRK");
 			if (emulation) {
 				int irq = mapper.getUnsignedShort(0xFFFE);
 				pc = irq;
 				return 8;
 			}
+		case 0x18: // CLC
+			p = p & 0xFE;
+			debug("CLC");
+			return 2;
+		case 0x1B: // TCS
+			s = a;
+			return 2;
+		case 0x38: // SEC
+			p = p | 1;
+			return 2;
+		case 0x3B: // TSC
+			a = s;
+			return 2;
+		case 0x58: // CLI
+			p = p & 0b11111011;
+			return 2;
+		case 0x5B: //TCD
+			d = a;
+			return 2;
 		case 0x69: // ADC (immediate)
 			int operand = readImmediate(!m);
-			System.out.println("ADC #$" + Integer.toHexString(operand));
+			debug("ADC #$" + Integer.toHexString(operand));
 			adc(operand, m);
 			return 3-mInt;
 		case 0x6D: // ADC (absolute)
@@ -191,17 +217,26 @@ public class CPU {
 		case 0x6F: // ADC (long)
 			adc(readLong(!m), m);
 			return 6-mInt;
+		case 0x78: // SEI
+			debug("SEI");
+			p |= 0b100;
+			return 2;
+		case 0x7B: // TDC
+			a = d;
+			return 2;
 		case 0x82: // BRL
 			pc++;
 			short displacement = mapper.getShort(pc);
-			pc += displacement = 1;
+			pc += displacement + 1;
 			return 4;
 		case 0x85: // STA (direct)
 			int addr = readDirectAddress();
 			mapper.setShort(addr, (short) a);
+			debug("STA $" + Integer.toHexString(addr));
 			return 4-mInt-wInt;
 		case 0x8A: // TXA
 			a = x;
+			debug("TXA");
 			return 2;
 		case 0x98:
 			a = y;
@@ -212,8 +247,18 @@ public class CPU {
 		case 0x9B: // TXY
 			y = x;
 			return 2;
+		case 0x9C: // STZ (absolute)
+			int zAddr = readAbsoluteAddress();
+			debug("STZ $" + Integer.toHexString(zAddr));
+			if (m) {
+				mapper.set(zAddr, (byte) 0);
+			} else {
+				mapper.setShort(zAddr, (short) 0);
+			}
+			return 5-mInt;
 		case 0xA5: // LDA (direct)
 			a = readDirect(!m);
+			debug("LDA = " + a);
 			return 4-mInt+wInt;
 		case 0xA8: // TAY
 			y = a;
@@ -230,6 +275,9 @@ public class CPU {
 		case 0xAF: // LDA (long)
 			a = readLong(!m);
 			return 6-mInt;
+		case 0xB8: // CLV
+			p = p & 0b10111111;
+			return 2;
 		case 0xBA: // TSX
 			x = s;
 			return 1;
@@ -241,29 +289,23 @@ public class CPU {
 			debug("REP #" + Integer.toBinaryString(bits));
 			p = p & (~bits);
 			return 3;
+		case 0xD8: // CLD
+			p &= 0b11110111;
+			return 2;
 		case 0xE2: // SEP
 			int setBits = readImmediate(false);
 			debug("SEP #" + Integer.toBinaryString(setBits));
 			p = p | setBits;
 			return 3;
+		case 0xF8: // SED
+			p |= 0b1000;
+			return 2;
 		case 0xFB: // XCE
 			int carry = p & 1;
 			int emu = emulation ? 1 : 0;
 			p &= 0xFE; // clear carry
 			p |= emu; // set carry
 			emulation = (carry == 1); // set emulation flag
-			return 2;
-		case 0x3B: // TSC
-			a = s;
-			return 2;
-		case 0x1B: // TCS
-			s = a;
-			return 2;
-		case 0x5B: //TCD
-			d = a;
-			return 2;
-		case 0x7B: // TDC
-			a = d;
 			return 2;
 		default:
 			System.err.println("0x" + Integer.toHexString(pc) + ": unknown opcode (0x" + Integer.toHexString(opcode) + ")");

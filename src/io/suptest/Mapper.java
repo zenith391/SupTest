@@ -18,8 +18,8 @@ public class Mapper {
 	}
 	
 	public int getUnsignedShort(int addr) {
-		return (Byte.toUnsignedInt(get(addr)) << 8)
-				| Byte.toUnsignedInt(get(addr+1));
+		return (Byte.toUnsignedInt(get(addr+1)) << 8)
+				| Byte.toUnsignedInt(get(addr));
 	}
 	
 	public int getUnsignedByte(int addr) {
@@ -51,7 +51,7 @@ public class Mapper {
 			bank |= 0x80;
 			if (bank >= 0x80 && low >= 0x8000) {
 				int romAddr = (bank-0x80)*0x8000 + low-0x8000;
-				rom[romAddr] = value;
+				System.err.println("Cannot set ROM! 0x" + Integer.toHexString(addr));
 				return;
 			} else if (bank >= 0xF0 && low < 0x8000) {
 				int sramAddr = (bank-0xF0)*0x8000 + low;
@@ -61,7 +61,7 @@ public class Mapper {
 				}
 			} else if (bank >= 0xC0 && low < 0x8000) {
 				int romAddr = (bank-0xC0)*0x8000 + low;
-				rom[romAddr] = value;
+				System.err.println("Cannot set ROM! 0x" + Integer.toHexString(addr));
 				return;
 			}
 		}
@@ -70,9 +70,32 @@ public class Mapper {
 			// TODO
 		}
 		
+		if (addr >= 0x2140 && addr < 0x2144) { // APU I/O registers
+			System.out.println("APU I/O #" + (addr-0x2140) + " = " + value);
+			return;
+		}
+		
+		if (addr == 0x4200) { // interrupt enable register
+			System.out.println("interrupt enable = " + value);
+			return;
+		}
+		
+		if (addr == 0x420B) { // DMA enable
+			System.out.println("DMA enable = " + value);
+			return;
+		}
+		
+		if (addr == 0x420C) { // HDMA enable
+			System.out.println("HDMA enable = " + value);
+			return;
+		}
+		
+		// TODO: CPU registers
+		// DMA: 4300-437B
+		
 		// OPEN BUS !!!
 		System.err.println("Open Bus! 0x" + Integer.toHexString(addr));
-		rom[addr] = value;
+		
 	}
 	
 	public byte get(int addr) {
