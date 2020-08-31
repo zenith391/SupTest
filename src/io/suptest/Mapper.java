@@ -4,12 +4,16 @@ public class Mapper {
 
 	byte[] ram;
 	byte[] rom;
+	byte[] cgram;
 	byte[] sram;
 	MappingMode mode;
 	
-	public Mapper(byte[] rom, byte[] ram, MappingMode mode) {
+	int cgramAddr;
+	
+	public Mapper(byte[] rom, byte[] ram, byte[] cgram, MappingMode mode) {
 		this.rom = rom;
 		this.ram = ram;
+		this.cgram = cgram;
 		this.mode = mode;
 	}
 	
@@ -70,6 +74,14 @@ public class Mapper {
 			// TODO
 		}
 		
+		if (addr == 0x2122) { // CGRAM write
+			cgram[cgramAddr] = value;
+		}
+		
+		if (addr == 0x2121) { // CGRAM address
+			cgramAddr = Byte.toUnsignedInt(value);
+		}
+		
 		if (addr >= 0x2140 && addr < 0x2144) { // APU I/O registers
 			System.out.println("APU I/O #" + (addr-0x2140) + " = " + value);
 			return;
@@ -108,6 +120,10 @@ public class Mapper {
 			if (low <= 0x1FFF) {
 				return ram[addr & 0x1FFF];
 			}
+		}
+		
+		if (addr == 0x213B) { // CGRAM read
+			return cgram[cgramAddr];
 		}
 		
 		if (mode == MappingMode.LOROM) {

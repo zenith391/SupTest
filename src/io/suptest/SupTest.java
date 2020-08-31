@@ -10,6 +10,7 @@ public class SupTest {
 		Path path = Paths.get("Super Mario World (USA).sfc");
 		byte[] rom = Files.readAllBytes(path);
 		byte[] ram = new byte[0x2FFFF];
+		byte[] cgram = new byte[0xFF];
 		
 		String str = "";
 		int romOffset = 0x8000;
@@ -26,7 +27,7 @@ public class SupTest {
 		int sramSize = (int) Math.pow(2, rom[0xFFD8-romOffset]);
 		System.out.println(romSize + "K ROM, " + sramSize + "K SRAM.");
 		
-		Mapper mapper = new Mapper(rom, ram, mapMode);
+		Mapper mapper = new Mapper(rom, ram, cgram, mapMode);
 		CPU cpu = new CPU(mapper);
 		cpu.pc = mapper.getUnsignedShort(0xFFFC); // jump to RESET vector
 		
