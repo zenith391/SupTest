@@ -6,7 +6,7 @@ public class CPU {
 	int dbr; // data bank register (8 bits)
 	int d; // direct register (16 bits)
 	int k; // program bank (8 bits)
-	int pc = 0x8000; // program counter (16 bits)
+	int pc; // program counter (16 bits)
 	int p; // processor status
 	int s; // stack pointer (16 bits)
 	int x; // 16 bits
@@ -14,13 +14,13 @@ public class CPU {
 	
 	boolean emulation = true; // emulation flag
 	
-	//byte[] ram;
 	Mapper mapper;
 	
 	public CPU(Mapper mapper) {
 		this.mapper = mapper;
 	}
 	
+	// read next address in direct addressing mode
 	int readDirectAddress() {
 		int low = mapper.get(pc);
 		int addr = d+low;
@@ -31,6 +31,7 @@ public class CPU {
 		return addr;
 	}
 	
+	// read value at next address in direct addressing mode
 	int readDirect(boolean wide) {
 		int addr = readDirectAddress();
 		
@@ -41,6 +42,7 @@ public class CPU {
 		}
 	}
 	
+	// read immediate value
 	int readImmediate(boolean wide) {
 		if (wide) {
 			int operand = mapper.getUnsignedShort(pc);
