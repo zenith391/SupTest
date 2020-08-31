@@ -151,6 +151,14 @@ public class CPU {
 		return mapper.get(s);
 	}
 	
+	void debug(String str) {
+		if (true) System.out.println(str);
+	}
+	
+	/**
+	 * Execute one operation.
+	 * @return cycle count
+	 */
 	public int execute() {
 		int opcode = Byte.toUnsignedInt(mapper.get(pc));
 		
@@ -186,27 +194,58 @@ public class CPU {
 		case 0x82: // BRL
 			pc++;
 			short displacement = mapper.getShort(pc);
-			pc++;
-			System.out.println("displace by " + displacement);
+			pc += displacement = 1;
 			return 4;
 		case 0x85: // STA (direct)
 			int addr = readDirectAddress();
 			mapper.setShort(addr, (short) a);
-			System.out.println(Integer.toHexString(pc));
-			System.out.println("set " + addr + " to " + a);
 			return 4-mInt-wInt;
+		case 0x8A: // TXA
+			a = x;
+			return 2;
+		case 0x98:
+			a = y;
+			return 2;
+		case 0x9A: // TXS
+			s = x;
+			return 2;
+		case 0x9B: // TXY
+			y = x;
+			return 2;
 		case 0xA5: // LDA (direct)
 			a = readDirect(!m);
 			return 4-mInt+wInt;
+		case 0xA8: // TAY
+			y = a;
+			return 2;
 		case 0xA9: // LDA (immediate)
 			a = readImmediate(!m);
 			return 3-mInt;
+		case 0xAA: // TAX
+			x = a;
+			return 2;
 		case 0xAD: // LDA (absolute)
 			a = readAbsolute(!m);
 			return 5-mInt;
 		case 0xAF: // LDA (long)
 			a = readLong(!m);
 			return 6-mInt;
+		case 0xBA: // TSX
+			x = s;
+			return 1;
+		case 0xBB: // TYX
+			x = y;
+			return 2;
+		case 0xC2: // REP
+			int bits = readImmediate(false);
+			debug("REP #" + Integer.toBinaryString(bits));
+			p = p & (~bits);
+			return 3;
+		case 0xE2: // SEP
+			int setBits = readImmediate(false);
+			debug("SEP #" + Integer.toBinaryString(setBits));
+			p = p | setBits;
+			return 3;
 		case 0xFB: // XCE
 			int carry = p & 1;
 			int emu = emulation ? 1 : 0;
