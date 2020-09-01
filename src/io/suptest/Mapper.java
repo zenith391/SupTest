@@ -4,9 +4,9 @@ public class Mapper {
 
 	private byte[] ram;
 	private byte[] rom;
-	private byte[] cgram;
-	private byte[] oam;
-	private byte[] vram;
+	public byte[] cgram;
+	public byte[] oam;
+	public byte[] vram;
 	private byte[] sram;
 	
 	private MappingMode mode;
@@ -20,7 +20,7 @@ public class Mapper {
 		this.rom = rom;
 		this.mode = mode;
 		ram = new byte[0x2FFFF];
-		cgram = new byte[0xFF];
+		cgram = new byte[512];
 		oam = new byte[544];
 		vram = new byte[0xFFFF];
 	}

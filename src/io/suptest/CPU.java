@@ -100,6 +100,7 @@ public class CPU {
 	
 	int readAbsolute(boolean wide) {
 		int addr = readAbsoluteAddress();
+		debug(Integer.toHexString(addr));
 		if (wide) {
 			return mapper.getUnsignedShort(addr);
 		} else {
@@ -154,6 +155,19 @@ public class CPU {
 		if (m) a &= 0xFF;
 	}
 	
+	void cmp(int register, int operand, boolean m) {
+		int result = register - operand;
+		
+		p &= 0b11111110; // clear carry
+		if (result > 0xFFFF || (m && result > 0xFF)) p |= 1; // set carry
+		
+		p &= 0x7F; // clear negative flag
+		p |= (result & 0x80); // set negative flag if A is negative
+		
+		p &= 0b11111101; // clear zero flag
+		if (result == 0) p |= 0b10; // set zero flag if A is zero
+	}
+	
 	public void m(boolean val) {
 		p &= 0b11011111;
 		p |= (val ? 1 : 0) << 5;
@@ -174,8 +188,14 @@ public class CPU {
 		return mapper.get(s);
 	}
 	
+	public static final boolean DEBUG = true;
+	
 	void debug(String str) {
-		if (true) System.out.println(str);
+		if (DEBUG) System.out.println(str);
+	}
+	
+	void writeDebug(String str) {
+		if (DEBUG) System.out.print(str);
 	}
 	
 	/**
@@ -262,6 +282,7 @@ public class CPU {
 			adc(operand, m);
 			return 3-mInt;
 		case 0x6D: // ADC (absolute)
+			writeDebug("ADC $");
 			adc(readAbsolute(!m), m);
 			return 4-mInt;
 		case 0x6F: // ADC (long)
@@ -359,6 +380,7 @@ public class CPU {
 			x = a;
 			return 2;
 		case 0xAD: // LDA (absolute)
+			writeDebug("LDA $");
 			a = readAbsolute(!m);
 			return 5-mInt;
 		case 0xAF: // LDA (long)
@@ -382,6 +404,11 @@ public class CPU {
 			debug("DEX");
 			x = (x - 1) & (xf ? 0xFF : 0xFFFF);
 			return 2;
+		case 0xCD: // CMP (absolute)
+			writeDebug("CMP $");
+			int value = readAbsolute(!m);
+			cmp(a, value, m);
+			return 5-mInt;
 		case 0xD8: // CLD
 			p &= 0b11110111;
 			return 2;
@@ -406,10 +433,6 @@ public class CPU {
 			p |= emu; // set carry to emulation flag
 			emulation = (carry == 1); // set emulation flag
 			return 2;
-		case 0xCD: // CMP(Absolute)
-			// this implementation of cmp absolute is incorrect(sorry)
-			int value = readAbsolute(!m);
-			if(value == a) flagsA(true);
 		default:
 			System.err.println("0x" + Integer.toHexString(pc) + ": unknown opcode (0x" + Integer.toHexString(opcode) + ")");
 		}
