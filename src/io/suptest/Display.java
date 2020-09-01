@@ -13,7 +13,8 @@ public class Display extends JFrame {
 	private PPU ppu;
 	
 	class DisplayComponent extends JComponent {
-		
+		private static final long serialVersionUID = 1L;
+
 		public void paint(Graphics g) {
 			g.drawImage(ppu.getBackBuffer(), 0, 0, null);
 		}

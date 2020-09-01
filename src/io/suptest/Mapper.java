@@ -2,25 +2,31 @@ package io.suptest;
 
 public class Mapper {
 
-	byte[] ram;
-	byte[] rom;
-	byte[] cgram;
-	byte[] oam;
-	byte[] vram;
-	byte[] sram;
-	MappingMode mode;
+	private byte[] ram;
+	private byte[] rom;
+	private byte[] cgram;
+	private byte[] oam;
+	private byte[] vram;
+	private byte[] sram;
 	
-	int cgramAddr;
-	int vramAddr;
-	int oamAddr;
+	private MappingMode mode;
+	private PPU ppu;
 	
-	public Mapper(byte[] rom, byte[] ram, byte[] cgram, byte[] oam, byte[] vram, MappingMode mode) {
+	private int cgramAddr;
+	private int vramAddr;
+	private int oamAddr;
+	
+	public Mapper(byte[] rom, MappingMode mode) {
 		this.rom = rom;
-		this.ram = ram;
-		this.cgram = cgram;
-		this.oam = oam;
-		this.vram = vram;
 		this.mode = mode;
+		ram = new byte[0x2FFFF];
+		cgram = new byte[0xFF];
+		oam = new byte[544];
+		vram = new byte[0xFFFF];
+	}
+	
+	public void setPPU(PPU ppu) {
+		this.ppu = ppu;
 	}
 	
 	public short getShort(int addr) {
@@ -60,7 +66,6 @@ public class Mapper {
 		if (mode == MappingMode.LOROM) {
 			bank |= 0x80;
 			if (bank >= 0x80 && low >= 0x8000) {
-				int romAddr = (bank-0x80)*0x8000 + low-0x8000;
 				System.err.println("Cannot set ROM! 0x" + Integer.toHexString(addr));
 				return;
 			} else if (bank >= 0xF0 && low < 0x8000) {
@@ -70,14 +75,15 @@ public class Mapper {
 					return;
 				}
 			} else if (bank >= 0xC0 && low < 0x8000) {
-				int romAddr = (bank-0xC0)*0x8000 + low;
 				System.err.println("Cannot set ROM! 0x" + Integer.toHexString(addr));
 				return;
 			}
 		}
 		
-		if (mode == MappingMode.HIROM) {
-			// TODO
+		if (addr == 0x2100) { // Screen Display register
+			ppu.forceBlank = (value & 0x80) == 0x80;
+			ppu.screenBrightness = value & 0xF;
+			return;
 		}
 		
 		// CGRAM
@@ -158,10 +164,6 @@ public class Mapper {
 				int romAddr = (bank-0xC0)*0x8000 + low;
 				return rom[romAddr];
 			}
-		}
-		
-		if (mode == MappingMode.HIROM) {
-			// TODO
 		}
 		
 		// OPEN BUS !!!

@@ -125,24 +125,31 @@ public class CPU {
 		}
 	}
 	
+	/**
+	 * Sets the flags for register A after an ADC or SBC.<br/>
+	 * Affected flags: carry, negative, zero
+	 */
+	void flagsA(boolean m) {
+		p &= 0b11111110; // clear carry
+		if (a > 0xFFFF || (m && a > 0xFF)) p |= 1; // set carry
+		
+		p &= 0x7F; // clear negative flag
+		p |= (a & 0x80); // set negative flag if A is negative
+		
+		p &= 0b11111101; // clear zero flag
+		if (a == 0) p |= 0b10; // set zero flag if A is zero
+	}
+	
 	void adc(int operand, boolean m) {
 		a += operand + (p & 1); // a += operand + carry
-		if (a > 0xFFFF || (m && a > 0xFF)) {
-			p |= 1; // set carry
-		} else {
-			p &= 0xFE; // clear carry
-		}
+		flagsA(m);
 		a &= 0xFFFF;
 		if (m) a &= 0xFF;
 	}
 	
 	void sbc(int operand, boolean m) {
 		a = a - operand - 1 + (p & 1); // a = a - operand - 1 + carry
-		if (a > 0xFFFF || (m && a > 0xFF)) {
-			p |= 1; // set carry
-		} else {
-			p &= 0xFE; // clear carry
-		}
+		flagsA(m);
 		a &= 0xFFFF;
 		if (m) a &= 0xFF;
 	}
@@ -155,6 +162,11 @@ public class CPU {
 	public void push(byte operand) {
 		mapper.set(s, operand);
 		s = (s - 1) & 0xFFFF;
+	}
+	
+	public void push(short operand) {
+		push((byte) (operand & 0xFF00));
+		push((byte) (operand & 0xFF));
 	}
 	
 	public byte pop() {
@@ -199,6 +211,19 @@ public class CPU {
 				pc = irq;
 				return 8;
 			}
+		case 0x08: // PHP
+			push((byte) p);
+			return 3;
+		case 0x10: // BPL
+			int rel = mapper.getUnsignedByte(pc);
+			debug("BPL $" + Integer.toHexString(pc+rel));
+			if ((p & 0b10000000) == 0) {
+				pc = pc + rel;
+				return emulation ? 3 : 4;
+			} else {
+				pc++;
+			}
+			return 2;
 		case 0x18: // CLC
 			p = p & 0xFE;
 			debug("CLC");
@@ -207,7 +232,18 @@ public class CPU {
 			debug("TCS");
 			s = a;
 			return 2;
+		case 0x20: // JSR (absolute)
+			addr = readAbsoluteAddress();
+			debug("JSR $" + Integer.toHexString(addr));
+			pc--; // set PC to last byte of JSR instead of next instruction
+			push((short) (pc & 0xFFFF));
+			pc = (pc & 0xFF0000) | addr;
+			return 6;
+		case 0x28: // PLP
+			p = pop();
+			return 4;
 		case 0x38: // SEC
+			debug("SEC");
 			p = p | 1;
 			return 2;
 		case 0x3B: // TSC
@@ -254,6 +290,10 @@ public class CPU {
 			if (m) mapper.set(addr, (byte) a);
 			else mapper.setShort(addr, (short) a);
 			return 4-mInt-wInt;
+		case 0x88: // DEY
+			debug("DEY");
+			y = (y - 1) & (xf ? 0xFF : 0xFFFF);
+			return 2;
 		case 0x8A: // TXA
 			a = x;
 			debug("TXA");
@@ -308,6 +348,7 @@ public class CPU {
 			debug("LDA = " + a);
 			return 4-mInt+wInt;
 		case 0xA8: // TAY
+			debug("TAY");
 			y = a;
 			return 2;
 		case 0xA9: // LDA (immediate)
@@ -337,6 +378,10 @@ public class CPU {
 			debug("REP #" + Integer.toBinaryString(bits));
 			p = p & (~bits);
 			return 3;
+		case 0xCA: // DEX
+			debug("DEX");
+			x = (x - 1) & (xf ? 0xFF : 0xFFFF);
+			return 2;
 		case 0xD8: // CLD
 			p &= 0b11110111;
 			return 2;
