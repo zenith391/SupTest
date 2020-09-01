@@ -22,7 +22,7 @@ public class CPU {
 	
 	// read next address in direct addressing mode
 	int readDirectAddress() {
-		int low = mapper.get(pc);
+		int low = mapper.getUnsignedByte(pc);
 		int addr = d+low;
 		if (emulation && (d & 0xFF) == 0) {
 			addr = (d & 0xFF00) | low;
@@ -34,7 +34,24 @@ public class CPU {
 	// read value at next address in direct addressing mode
 	int readDirect(boolean wide) {
 		int addr = readDirectAddress();
-		
+		debug(Integer.toHexString(addr));
+		if (wide) {
+			return mapper.getUnsignedShort(addr);
+		} else {
+			return mapper.getUnsignedByte(addr);
+		}
+	}
+	
+	/**
+	 * (Direct,X)<br/>
+	 * example: ($12,X)
+	 * @param wide Should variable be read as 16-bit (true) or 8-bit (false)
+	 * @return value
+	 */
+	int readDirectX(boolean wide) {
+		int addr = readDirectAddress();
+		debug("($" + Integer.toHexString(addr) + ",X)");
+		addr += x;
 		if (wide) {
 			return mapper.getUnsignedShort(addr);
 		} else {
@@ -131,14 +148,20 @@ public class CPU {
 	 * Affected flags: carry, negative, zero
 	 */
 	void flagsA(boolean m) {
-		p &= 0b11111110; // clear carry
-		if (a > 0xFFFF || (m && a > 0xFF)) p |= 1; // set carry
+		flags(a, m, true);
+	}
+	
+	void flags(int value, boolean m, boolean doCarry) {
+		if (doCarry) {
+			p &= 0b11111110; // clear carry
+			if (value > 0xFFFF || (m && value > 0xFF)) p |= 1; // set carry
+		}
 		
 		p &= 0x7F; // clear negative flag
-		p |= (a & 0x80); // set negative flag if A is negative
+		p |= (value & 0x80); // set negative flag if A is negative
 		
 		p &= 0b11111101; // clear zero flag
-		if (a == 0) p |= 0b10; // set zero flag if A is zero
+		if (value == 0) p |= 0b10; // set zero flag if A is zero
 	}
 	
 	void adc(int operand, boolean m) {
@@ -157,15 +180,7 @@ public class CPU {
 	
 	void cmp(int register, int operand, boolean m) {
 		int result = register - operand;
-		
-		p &= 0b11111110; // clear carry
-		if (result > 0xFFFF || (m && result > 0xFF)) p |= 1; // set carry
-		
-		p &= 0x7F; // clear negative flag
-		p |= (result & 0x80); // set negative flag if A is negative
-		
-		p &= 0b11111101; // clear zero flag
-		if (result == 0) p |= 0b10; // set zero flag if A is zero
+		flags(result, m, true);
 	}
 	
 	public void m(boolean val) {
@@ -178,14 +193,24 @@ public class CPU {
 		s = (s - 1) & 0xFFFF;
 	}
 	
-	public void push(short operand) {
-		push((byte) (operand & 0xFF00));
+	public void pushShort(int operand) {
+		push((byte) ((operand & 0xFF00) >> 8));
 		push((byte) (operand & 0xFF));
 	}
 	
 	public byte pop() {
 		s = (s + 1) & 0xFFFF;
 		return mapper.get(s);
+	}
+	
+	public int popUnsignedByte() {
+		return Byte.toUnsignedInt(pop());
+	}
+	
+	public int popUnsignedShort() {
+		int low = popUnsignedByte();
+		int high = popUnsignedByte();
+		return low | (high << 8);
 	}
 	
 	public static final boolean DEBUG = true;
@@ -219,6 +244,7 @@ public class CPU {
 		
 		int addr = 0;
 		int operand = 0;
+		int rel = 0;
 		
 		System.out.println(Integer.toHexString(pc) + ": " + Integer.toHexString(opcode));
 		pc++;
@@ -230,12 +256,15 @@ public class CPU {
 				int irq = mapper.getUnsignedShort(0xFFFE);
 				pc = irq;
 				return 8;
+			} else {
+				return 0; // TODO cycle accuracy
 			}
 		case 0x08: // PHP
+			debug("PHP");
 			push((byte) p);
 			return 3;
 		case 0x10: // BPL
-			int rel = mapper.getUnsignedByte(pc);
+			rel = mapper.getUnsignedByte(pc);
 			debug("BPL $" + Integer.toHexString(pc+rel));
 			if ((p & 0b10000000) == 0) {
 				pc = pc + rel;
@@ -256,10 +285,17 @@ public class CPU {
 			addr = readAbsoluteAddress();
 			debug("JSR $" + Integer.toHexString(addr));
 			pc--; // set PC to last byte of JSR instead of next instruction
-			push((short) (pc & 0xFFFF));
+			pushShort(pc & 0xFFFF);
 			pc = (pc & 0xFF0000) | addr;
 			return 6;
+		case 0x21: // AND (direct,X)
+			writeDebug("AND ");
+			operand = readDirectX(!m);
+			a &= operand;
+			flags(a, m, false);
+			return 7-mInt+wInt;
 		case 0x28: // PLP
+			debug("PLP");
 			p = pop();
 			return 4;
 		case 0x38: // SEC
@@ -276,6 +312,10 @@ public class CPU {
 			debug("TCD");
 			d = a;
 			return 2;
+		case 0x60: // RTS
+			debug("RTS");
+			pc = (pc & 0xFF0000) | popUnsignedShort() + 1;
+			return 6;
 		case 0x69: // ADC (immediate)
 			operand = readImmediate(!m);
 			debug("ADC #$" + Integer.toHexString(operand));
@@ -301,9 +341,9 @@ public class CPU {
 			adc(operand, m);
 			return 3-mInt;
 		case 0x82: // BRL
-			debug("BRL");
 			short displacement = mapper.getShort(pc);
 			pc += displacement + 1;
+			debug("BRL $" + pc);
 			return 4;
 		case 0x85: // STA (direct)
 			addr = readDirectAddress();
@@ -365,8 +405,8 @@ public class CPU {
 			debug("LDX #$" + Integer.toHexString(x));
 			return 3-xInt;
 		case 0xA5: // LDA (direct)
+			writeDebug("LDA $");
 			a = readDirect(!m);
-			debug("LDA = " + a);
 			return 4-mInt+wInt;
 		case 0xA8: // TAY
 			debug("TAY");
@@ -400,15 +440,33 @@ public class CPU {
 			debug("REP #" + Integer.toBinaryString(bits));
 			p = p & (~bits);
 			return 3;
+		case 0xC8: // INY
+			y = (y + 1) & (xf ? 0xFF : 0xFFFF);
+			return 2;
 		case 0xCA: // DEX
 			debug("DEX");
 			x = (x - 1) & (xf ? 0xFF : 0xFFFF);
 			return 2;
+		case 0xCC: // CPY (absolute)
+			writeDebug("CPY $");
+			operand = readAbsolute(!xf);
+			cmp(y, operand, m);
+			return 5-xInt;
 		case 0xCD: // CMP (absolute)
 			writeDebug("CMP $");
-			int value = readAbsolute(!m);
-			cmp(a, value, m);
+			operand = readAbsolute(!m);
+			cmp(a, operand, m);
 			return 5-mInt;
+		case 0xD0: // BNE
+			rel = mapper.getUnsignedByte(pc);
+			debug("BNE $" + Integer.toHexString(pc+rel));
+			if ((p & 0b10) == 0) {
+				pc = pc + rel;
+				return emulation ? 3 : 4;
+			} else {
+				pc++;
+			}
+			return 2;
 		case 0xD8: // CLD
 			p &= 0b11110111;
 			return 2;
@@ -417,11 +475,27 @@ public class CPU {
 			debug("SEP #" + Integer.toBinaryString(setBits));
 			p = p | setBits;
 			return 3;
+		case 0xE8: // INX
+			x = (x + 1) & (xf ? 0xFF : 0xFFFF);
+			return 2;
 		case 0xE9: // SBC (immediate)
 			operand = readImmediate(!m);
 			debug("SBC #$" + Integer.toHexString(operand));
 			sbc(operand, m);
 			return 3-mInt;
+		case 0xEA: // NOP
+			debug("NOP");
+			return 2;
+		case 0xF0: // BEQ
+			rel = mapper.getUnsignedByte(pc);
+			debug("BEQ $" + Integer.toHexString(pc+rel));
+			if ((p & 0b10) == 0b10) {
+				pc = pc + rel;
+				return emulation ? 3 : 4;
+			} else {
+				pc++;
+			}
+			return 2;
 		case 0xF8: // SED
 			p |= 0b1000;
 			return 2;

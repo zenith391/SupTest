@@ -107,7 +107,7 @@ public class Mapper {
 		}
 		
 		if (addr >= 0x2140 && addr < 0x2144) { // APU I/O registers
-			System.out.println("APU I/O #" + (addr-0x2140) + " = " + value);
+			System.out.println("APU I/O #" + (addr-0x2140) + " = " + Integer.toHexString(Byte.toUnsignedInt(value)));
 			return;
 		}
 		
@@ -148,6 +148,12 @@ public class Mapper {
 		
 		if (addr == 0x213B) { // CGRAM read
 			return cgram[cgramAddr];
+		}
+		
+		if (addr >= 0x2140 && addr < 0x2144) { // APU I/O registers
+			// TODO
+			System.out.println("Read APU I/O #" + (addr-0x2140));
+			return 0;
 		}
 		
 		if (mode == MappingMode.LOROM) {
