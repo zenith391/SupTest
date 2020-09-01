@@ -406,6 +406,10 @@ public class CPU {
 			p |= emu; // set carry to emulation flag
 			emulation = (carry == 1); // set emulation flag
 			return 2;
+		case 0xCD: // CMP(Absolute)
+			// this implementation of cmp absolute is incorrect(sorry)
+			int value = readAbsolute(!m);
+			if(value == a) flagsA(true);
 		default:
 			System.err.println("0x" + Integer.toHexString(pc) + ": unknown opcode (0x" + Integer.toHexString(opcode) + ")");
 		}
