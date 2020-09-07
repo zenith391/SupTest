@@ -313,6 +313,13 @@ public class CPU {
 			debug("PLP");
 			p = pop();
 			return 4;
+		case 0x29: // AND (immediate)
+			operand = readImmediate(!m);
+			System.out.println(operand);
+			writeDebug("AND #$" + Integer.toHexString(operand));
+			a &= operand;
+			flags(a, m, false);
+			return 3-mInt;
 		case 0x38: // SEC
 			debug("SEC");
 			p = p | 1;
@@ -324,6 +331,7 @@ public class CPU {
 			writeDebug("EOR ");
 			operand = readDirectX(!m);
 			a = a ^ operand;
+			flags(a, m, false);
 			return 7-mInt+wInt;
 		case 0x58: // CLI
 			p = p & 0b11111011;
