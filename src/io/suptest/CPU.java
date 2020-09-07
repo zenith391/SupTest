@@ -263,6 +263,21 @@ public class CPU {
 			debug("PHP");
 			push((byte) p);
 			return 3;
+		case 0x0C: // TSB (absolute)
+			writeDebug("TSB $");
+			addr = readAbsoluteAddress();
+			debug(Integer.toHexString(addr));
+			p &= 0b11111101; // clear zero flag
+			if (m) { // 8-bit
+				int b = mapper.getUnsignedByte(addr);
+				if (b == 0 && a == 0) p |= 0b10;
+				mapper.set(addr, (byte) (b | a));
+			} else { // 16-bit
+				int b = mapper.getUnsignedShort(addr);
+				if (b == 0 && a == 0) p |= 0b10;
+				mapper.setShort(addr, (short) (b | a));
+			}
+			return 8-2*mInt;
 		case 0x10: // BPL
 			rel = mapper.getUnsignedByte(pc);
 			debug("BPL $" + Integer.toHexString(pc+rel));
@@ -305,6 +320,11 @@ public class CPU {
 		case 0x3B: // TSC
 			a = s;
 			return 2;
+		case 0x41: // EOR (direct,X)
+			writeDebug("EOR ");
+			operand = readDirectX(!m);
+			a = a ^ operand;
+			return 7-mInt+wInt;
 		case 0x58: // CLI
 			p = p & 0b11111011;
 			return 2;
@@ -343,7 +363,7 @@ public class CPU {
 		case 0x82: // BRL
 			short displacement = mapper.getShort(pc);
 			pc += displacement + 1;
-			debug("BRL $" + pc);
+			debug("BRL $" + Integer.toHexString(pc));
 			return 4;
 		case 0x85: // STA (direct)
 			addr = readDirectAddress();
